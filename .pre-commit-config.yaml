@@ -17,8 +17,6 @@ repos:
     hooks:
       - id: clang-format
         args: [--style=file, -i]
-      - id: clang-tidy
-        args: [--fix, --fix-errors]
   - repo: https://github.com/psf/black
     rev: 22.3.0
     hooks:
