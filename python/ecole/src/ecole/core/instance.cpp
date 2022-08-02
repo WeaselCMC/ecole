@@ -8,6 +8,7 @@
 #include "ecole/instance/files.hpp"
 #include "ecole/instance/independent-set.hpp"
 #include "ecole/instance/set-cover.hpp"
+#include "ecole/instance/ship-allocation.hpp"
 #include "ecole/utility/function-traits.hpp"
 
 #include "core.hpp"
