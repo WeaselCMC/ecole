@@ -18,6 +18,7 @@ add_library(
 
 	src/instance/files.cpp
 	src/instance/set-cover.cpp
+	src/instance/ship-allocation.cpp
 	src/instance/independent-set.cpp
 	src/instance/combinatorial-auction.cpp
 	src/instance/capacitated-facility-location.cpp

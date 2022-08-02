@@ -1,13 +1,13 @@
 #include <fmt/format.h>
 #include <map>
 
+#include <xtensor/xarray.hpp>
+#include <xtensor/xindex_view.hpp>
+#include <xtensor/xmanipulation.hpp>
 #include <xtensor/xrandom.hpp>
 #include <xtensor/xsort.hpp>
 #include <xtensor/xtensor.hpp>
 #include <xtensor/xview.hpp>
-#include <xtensor/xarray.hpp>
-#include <xtensor/xindex_view.hpp>
-#include <xtensor/xmanipulation.hpp>
 
 #include "ecole/instance/ship-allocation.hpp"
 #include "ecole/scip/cons.hpp"
@@ -21,11 +21,9 @@ namespace ecole::instance {
  *  SAPGenerator methods  *
  *************************************/
 
-SAPGenerator::SAPGenerator(Parameters parameters_, RandomGenerator rng_) :
-	rng{rng_}, parameters{parameters_} {}
+SAPGenerator::SAPGenerator(Parameters parameters_, RandomGenerator rng_) : rng{rng_}, parameters{parameters_} {}
 
-SAPGenerator::SAPGenerator(Parameters parameters_) :
-	SAPGenerator{parameters_, ecole::spawn_random_generator()} {}
+SAPGenerator::SAPGenerator(Parameters parameters_) : SAPGenerator{parameters_, ecole::spawn_random_generator()} {}
 
 SAPGenerator::SAPGenerator() : SAPGenerator(Parameters{}) {}
 
@@ -58,25 +56,29 @@ auto add_var(SCIP* scip, size_t i, size_t j, size_t k, SCIP_Real cost) -> SCIP_V
  *
  */
 auto add_vars(SCIP* scip, xt::xtensor<SCIP_Real, 3> const& c) -> xt::xtensor<SCIP_VAR*, 1> {
-	auto shape = c.shape()
+	auto shape = c.shape();
 	auto vars = xt::xtensor<SCIP_VAR*, 3>{{shape}};
 
-	for (size_t i = 0; i < shape(0); ++i) {
-		for (size_t j = 0; j < shape(1); ++j) {
-			for (size_t k = 0; k < shape(2); ++k) {
+	for (size_t i = 0; i < shape[0]; ++i) {
+		for (size_t j = 0; j < shape[1]; ++j) {
+			for (size_t k = 0; k < shape[2]; ++k) {
 				vars(i, j, k) = add_var(scip, i, j, k, c(i, j, k));
 			}
-		}	
+		}
 	}
 
 	return vars;
 }
 
 /*
- * 
+ *
  */
-auto add_constaints(SCIP* scip, xt::xtensor<SCIP_VAR*, 3> vars, xt::xtensor<SCIP_VAR*, 3> max_prod,
-					xt::xtensor<SCIP_VAR*, 2> month_constr, xt::xtensor<SCIP_VAR*, 1> annual_constr) {
+auto add_constaints(
+	SCIP* scip,
+	xt::xtensor<SCIP_VAR*, 3> vars,
+	xt::xtensor<SCIP_Real, 3> max_prod,
+	xt::xtensor<SCIP_Real, 2> month_constr,
+	xt::xtensor<SCIP_Real, 1> annual_constr) {
 
 	auto const neg_inf = -SCIPinfinity(scip);
 
@@ -85,28 +87,27 @@ auto add_constaints(SCIP* scip, xt::xtensor<SCIP_VAR*, 3> vars, xt::xtensor<SCIP
 			for (size_t k = 0; k < vars.shape(2); ++k) {
 				auto name = fmt::format("Y_{}_{}_{}", i, j, k);
 				auto coefs = xt::xtensor<SCIP_Real, 1>({1}, 1.);
-				auto cons =
-					scip::create_cons_basic_linear(scip, name.c_str(), 1, &vars(i, j, k), coefs.data(), neg_inf, max_prod(i, j, k));
+				auto cons = scip::create_cons_basic_linear(
+					scip, name.c_str(), 1, &vars(i, j, k), coefs.data(), neg_inf, max_prod(i, j, k));
 				scip::call(SCIPaddCons, scip, cons.get());
 			}
 
 			xt::xtensor<SCIP_VAR*, 1> x_ij = xt::view(vars, i, j, xt::all());
 			auto name = fmt::format("E_{}_{}", i, j);
-			auto coefs = xt::xtensor<SCIP_Real, 1>(vars.shape(2), 1.);
-			auto cons =
-				scip::create_cons_basic_linear(scip, name.c_str(), x_ij.size(), &x_ij(0), coefs.data(), neg_inf, month_constr(i, j));
+			auto coefs = xt::xtensor<SCIP_Real, 1>({vars.shape(2)}, 1.);
+			auto cons = scip::create_cons_basic_linear(
+				scip, name.c_str(), x_ij.size(), &x_ij(0), coefs.data(), neg_inf, month_constr(i, j));
 			scip::call(SCIPaddCons, scip, cons.get());
 		}
 
 		xt::xtensor<SCIP_VAR*, 1> x_j = xt::flatten(xt::view(vars, xt::all(), j, xt::all()));
 		auto name = fmt::format("Z_{}", j);
-		auto coefs = xt::xtensor<SCIP_Real, 1>(vars.shape(0) * vars.shape(2), 1.);
+		auto coefs = xt::xtensor<SCIP_Real, 1>({vars.shape(0) * vars.shape(2)}, 1.);
 		auto cons =
 			scip::create_cons_basic_linear(scip, name.c_str(), x_j.size(), &x_j(0), coefs.data(), neg_inf, annual_constr(j));
 		scip::call(SCIPaddCons, scip, cons.get());
 	}
 }
-
 
 }  // namespace
 
@@ -128,14 +129,14 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	// sample coefficients
 	xt::xarray<size_t>::shape_type shape = {n_months, n_places, n_ships};
 
-
 	// sample returns
-	xt::xtensor<SCIP_Real, 3> availability = xt::round(xt::random::rand(shape, 0, 3));
+	xt::xtensor<SCIP_Real, 3> availability = xt::random::binomial<size_t>(shape, 1, 0.8);
 	xt::xtensor<SCIP_Real, 3> returns = xt::random::rand<size_t>(shape, 3, 9);
 
 	// auto v = xt::filter(returns, availability >= 5);
-	// v = 0; 
-	filtration(returns, availability == 0) = 0;
+	// v = 0;
+	// filtration(returns, availability == 0) = 0;
+	returns *= availability;
 
 	// sample Y_ijk - contraints for each ship at every place
 	xt::xtensor<SCIP_Real, 3> max_prod = xt::random::rand<size_t>(shape, 10, 60);
@@ -151,7 +152,7 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	xt::xtensor<SCIP_Real, 1> annual_constr = xt::random::rand<size_t>({n_places}, 250, 350);
 
 	// add variables and constraints
-	auto const vars = add_vars(scip, returns, shape);
+	auto const vars = add_vars(scip, returns);
 	add_constaints(scip, vars, max_prod, month_constr, annual_constr);
 
 	return model;
