@@ -97,6 +97,22 @@ void bind_submodule(py::module const& m) {
 	def_iterator(file_gen);
 	file_gen.def("seed", &FileGenerator::seed, py::arg(" seed"));
 
+	// The SAP parameters used in constructor, generate_instance, and attributes
+	auto constexpr ship_allocation_params = std::tuple{
+		Member{"n_months", &SAPGenerator::Parameters::n_months},
+		Member{"n_places", &SAPGenerator::Parameters::n_places},
+		Member{"n_ships", &SAPGenerator::Parameters::n_ships},
+	};
+	// Bind SAPGenerator and remove intermediate Parameter class
+	auto ship_allocation_gen = py::class_<SAPGenerator>{m, "SAPGenerator"};
+	def_generate_instance(ship_allocation_gen, ship_allocation_params, R"(
+		Generate a ship allocation problem instance.
+	)");
+	def_init(ship_allocation_gen, ship_allocation_params);
+	def_attributes(ship_allocation_gen, ship_allocation_params);
+	def_iterator(ship_allocation_gen);
+	ship_allocation_gen.def("seed", &SAPGenerator::seed, py::arg("seed"));
+
 	// The Set Cover parameters used in constructor, generate_instance, and attributes
 	auto constexpr set_cover_params = std::tuple{
 		Member{"n_rows", &SetCoverGenerator::Parameters::n_rows},

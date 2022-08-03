@@ -130,8 +130,8 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	xt::xarray<size_t>::shape_type shape = {n_months, n_places, n_ships};
 
 	// sample returns
-	xt::xtensor<SCIP_Real, 3> availability = xt::random::binomial<size_t>(shape, 1, 0.8);
-	xt::xtensor<SCIP_Real, 3> returns = xt::random::rand<size_t>(shape, 3, 9);
+	xt::xtensor<SCIP_Real, 3> availability = xt::random::binomial<size_t>(shape, 1, 0.8, rng);
+	xt::xtensor<SCIP_Real, 3> returns = xt::random::rand<size_t>(shape, 3, 9, rng);
 
 	// auto v = xt::filter(returns, availability >= 5);
 	// v = 0;
@@ -139,17 +139,17 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	returns *= availability;
 
 	// sample Y_ijk - contraints for each ship at every place
-	xt::xtensor<SCIP_Real, 3> max_prod = xt::random::rand<size_t>(shape, 10, 60);
-	xt::xtensor<SCIP_Real, 2> month_constr = xt::random::rand<size_t>(shape, 30, 60);
+	xt::xtensor<SCIP_Real, 3> max_prod = xt::random::rand<size_t>(shape, 10, 60, rng);
+	xt::xtensor<SCIP_Real, 2> month_constr = xt::random::rand<size_t>(shape, 30, 60, rng);
 	auto m_c = xt::expand_dims(month_constr, 2);
 	max_prod = xt::clip(max_prod, 0, m_c);
 
 	// sample E_ij month constaints
-	xt::xtensor<SCIP_Real, 2> place_avail = xt::random::binomial<size_t>({n_months, n_places}, 1, 0.75);
+	xt::xtensor<SCIP_Real, 2> place_avail = xt::random::binomial<size_t>({n_months, n_places}, 1, 0.75, rng);
 	month_constr *= place_avail;
 
 	// annual constaints
-	xt::xtensor<SCIP_Real, 1> annual_constr = xt::random::rand<size_t>({n_places}, 250, 350);
+	xt::xtensor<SCIP_Real, 1> annual_constr = xt::random::rand<size_t>({n_places}, 250, 350, rng);
 
 	// add variables and constraints
 	auto const vars = add_vars(scip, returns);
