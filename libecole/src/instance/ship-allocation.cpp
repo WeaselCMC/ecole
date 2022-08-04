@@ -46,7 +46,7 @@ using xvector = xt::xtensor<size_t, 1>;
  */
 auto add_var(SCIP* scip, size_t i, size_t j, size_t k, SCIP_Real cost) -> SCIP_VAR* {
 	auto const name = fmt::format("x_{}_{}_{}", i, j, k);
-	auto unique_var = scip::create_var_basic(scip, name.c_str(), 0., 1., cost, SCIP_VARTYPE_BINARY);
+	auto unique_var = scip::create_var_basic(scip, name.c_str(), 0., 1., cost, SCIP_VARTYPE_CONTINUOUS);
 	auto* var_ptr = unique_var.get();
 	scip::call(SCIPaddVar, scip, var_ptr);
 	return var_ptr;
@@ -120,36 +120,33 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	auto const n_places = parameters.n_places;
 	auto const n_ships = parameters.n_ships;
 
+	// sample coefficients
+	xt::xarray<size_t>::shape_type shape = {n_months, n_places, n_ships};
+
+	// sample returns
+	xt::xtensor<SCIP_Real, 3> availability = xt::random::binomial<size_t>(shape, 1, 0.8, rng) + 0;
+	xt::xtensor<SCIP_Real, 3> returns = xt::random::rand<SCIP_Real>(shape, 3, 9, rng) + 0;
+
+	returns *= availability;
+
+	// sample Y_ijk - contraints for each ship at every place
+	xt::xtensor<SCIP_Real, 3> max_prod = xt::random::rand<SCIP_Real>(shape, 10, 60, rng) + 0;
+	xt::xtensor<SCIP_Real, 2> month_constr = xt::random::rand<SCIP_Real>({n_months, n_places}, 30, 60, rng) + 0;
+	auto m_c = xt::expand_dims(month_constr, 2);
+	max_prod = xt::clip(max_prod, 0, m_c);
+
+	// sample E_ij month constaints
+	xt::xtensor<SCIP_Real, 2> place_avail = xt::random::binomial<size_t>({n_months, n_places}, 1, 0.75, rng) + 0;
+	month_constr *= place_avail;
+
+	// annual constaints
+	xt::xtensor<SCIP_Real, 1> annual_constr = xt::random::rand<SCIP_Real>({n_places}, 250, 350, rng) + 0;
+
 	// create scip model
 	auto model = scip::Model::prob_basic();
 	model.set_name(fmt::format("SAP-{}-{}-{}", parameters.n_months, parameters.n_places, parameters.n_ships));
 	auto* const scip = model.get_scip_ptr();
 	scip::call(SCIPsetObjsense, scip, SCIP_OBJSENSE_MAXIMIZE);
-
-	// sample coefficients
-	xt::xarray<size_t>::shape_type shape = {n_months, n_places, n_ships};
-
-	// sample returns
-	xt::xtensor<SCIP_Real, 3> availability = xt::random::binomial<size_t>(shape, 1, 0.8, rng);
-	xt::xtensor<SCIP_Real, 3> returns = xt::random::rand<size_t>(shape, 3, 9, rng);
-
-	// auto v = xt::filter(returns, availability >= 5);
-	// v = 0;
-	// filtration(returns, availability == 0) = 0;
-	returns *= availability;
-
-	// sample Y_ijk - contraints for each ship at every place
-	xt::xtensor<SCIP_Real, 3> max_prod = xt::random::rand<size_t>(shape, 10, 60, rng);
-	xt::xtensor<SCIP_Real, 2> month_constr = xt::random::rand<size_t>(shape, 30, 60, rng);
-	auto m_c = xt::expand_dims(month_constr, 2);
-	max_prod = xt::clip(max_prod, 0, m_c);
-
-	// sample E_ij month constaints
-	xt::xtensor<SCIP_Real, 2> place_avail = xt::random::binomial<size_t>({n_months, n_places}, 1, 0.75, rng);
-	month_constr *= place_avail;
-
-	// annual constaints
-	xt::xtensor<SCIP_Real, 1> annual_constr = xt::random::rand<size_t>({n_places}, 250, 350, rng);
 
 	// add variables and constraints
 	auto const vars = add_vars(scip, returns);
