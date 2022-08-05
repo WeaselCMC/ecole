@@ -204,6 +204,20 @@ nonstd::span<SCIP_VAR*> Model::variables() const noexcept {
 	return {SCIPgetVars(scip_ptr), static_cast<std::size_t>(SCIPgetNVars(scip_ptr))};
 }
 
+
+std::pair<std::map<std::string, SCIP_Real>, std::size_t> Model::get_variables() const {
+	std::map<std::string, SCIP_Real> name_values{};
+	for (auto* const var : variables()) {
+		auto name = std::string{SCIPvarGetName(var)};
+		auto value = var->obj;
+		name_values.insert({std::move(name), std::move(value)});
+	}
+
+	auto* const scip_ptr = const_cast<SCIP*>(get_scip_ptr());
+
+	return {name_values, static_cast<std::size_t>(SCIPgetNVars(scip_ptr))};
+}
+
 nonstd::span<SCIP_VAR*> Model::lp_branch_cands() const {
 	int n_vars = 0;
 	SCIP_VAR** vars = nullptr;

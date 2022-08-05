@@ -169,6 +169,7 @@ void bind_submodule(py::module_ m) {
 		.def("get_param", &Model::get_param<Param>, py::arg("name"))
 		.def("set_param", &Model::set_param<Param>, py::arg("name"), py::arg("value"))
 		.def("get_params", &Model::get_params)
+		.def("get_variables", &Model::get_variables)
 		.def("set_params", &Model::set_params, py::arg("name_values"))
 		.def("disable_cuts", &Model::disable_cuts)
 		.def("disable_presolve", &Model::disable_presolve)

@@ -1,6 +1,9 @@
 #include <fmt/format.h>
 #include <map>
 
+#include <iostream>
+#include <fstream>
+
 #include <xtensor/xrandom.hpp>
 #include <xtensor/xsort.hpp>
 #include <xtensor/xtensor.hpp>
@@ -232,6 +235,7 @@ scip::Model SetCoverGenerator::generate_instance(Parameters parameters, RandomGe
 	// add variables and constraints
 	auto const vars = add_vars(scip, c);
 	add_constaints(scip, vars, indices_csr, indptr_csr, n_rows);
+
 
 	return model;
 

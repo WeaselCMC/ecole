@@ -125,6 +125,8 @@ public:
 	ECOLE_EXPORT void set_params(std::map<std::string, Param> name_values);
 	[[nodiscard]] ECOLE_EXPORT std::map<std::string, Param> get_params() const;
 
+	[[nodiscard]] ECOLE_EXPORT std::pair<std::map<std::string, SCIP_Real>, std::size_t> get_variables() const;
+
 	ECOLE_EXPORT void disable_presolve();
 	ECOLE_EXPORT void disable_cuts();
 
