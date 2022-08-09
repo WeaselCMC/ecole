@@ -1,10 +1,11 @@
 #include <fmt/format.h>
-#include <map>
 
 #include <iostream>
 #include <fstream>
 
 #include <random>
+
+
 
 #include <xtensor/xarray.hpp>
 #include <xtensor/xindex_view.hpp>
@@ -44,22 +45,26 @@ namespace {
 
 using std::size_t;
 
-SCIP_VAR* add_var(SCIP * scip, size_t i, size_t j, size_t k, SCIP_Real cost) {
-	auto const name = fmt::format("x_{}_{}_{}", i, j, k);
-	auto unique_var = scip::create_var_basic(scip, name.c_str(), 0, 1, cost, SCIP_VARTYPE_CONTINUOUS);
-	auto* var_ptr = unique_var.get();
+SCIP_VAR* add_var(SCIP * scip, std::string name, SCIP_Real cost, SCIP_Vartype vartype) {
+	auto unique_var = scip::create_var_basic(scip, name.c_str(), 0, 1, cost, vartype);
+	SCIP_VAR* var_ptr = unique_var.get();
 	scip::call(SCIPaddVar, scip, var_ptr);
 	return var_ptr;
 }
 
-xt::xtensor<SCIP_VAR*, 3> add_vars(SCIP* scip, xt::xtensor<SCIP_Real, 3> const& c) {
-	auto shape = c.shape();
-	xt::xtensor<SCIP_VAR *, 3> vars = xt::xtensor<SCIP_VAR*, 3>{{shape}};
+xt::xtensor<SCIP_VAR*, 4> add_vars(SCIP* scip, xt::xtensor<SCIP_Real, 3> c) {
+	xt::xtensor<SCIP_VAR*, 4>::shape_type shape = {static_cast<unsigned long>(3),
+												   c.shape(0),
+												   c.shape(1),
+												   c.shape(2)};
+	xt::xtensor<SCIP_VAR*, 4> vars(shape);
 
-	for (size_t i = 0; i < shape[0]; ++i) {
-		for (size_t j = 0; j < shape[1]; ++j) {
-			for (size_t k = 0; k < shape[2]; ++k) {
-				vars(i, j, k) = add_var(scip, i, j, k, c(i, j, k));
+	for (size_t i = 0; i < shape[1]; ++i) {
+		for (size_t j = 0; j < shape[2]; ++j) {
+			for (size_t k = 0; k < shape[3]; ++k) {
+				vars(0, i, j, k) = add_var(scip, fmt::format("x_{}_{}_{}", i, j, k), 0.0, 		 SCIP_VARTYPE_BINARY);
+				vars(1, i, j, k) = add_var(scip, fmt::format("q_{}_{}_{}", i, j, k), 0.0, 		 SCIP_VARTYPE_CONTINUOUS);
+				vars(2, i, j, k) = add_var(scip, fmt::format("y_{}_{}_{}", i, j, k), c(i, j, k), SCIP_VARTYPE_CONTINUOUS);
 			}
 		}
 	}
@@ -69,33 +74,64 @@ xt::xtensor<SCIP_VAR*, 3> add_vars(SCIP* scip, xt::xtensor<SCIP_Real, 3> const& 
 
 auto add_constaints(
 	SCIP * scip,
-	xt::xtensor<SCIP_VAR*, 3> vars,
-	xt::xtensor<SCIP_Real, 3> max_prod,
-	xt::xtensor<SCIP_Real, 2> month_constr,
-	xt::xtensor<SCIP_Real, 1> annual_constr) {
+	xt::xtensor<SCIP_VAR*, 4> &vars,
+	xt::xtensor<SCIP_Real, 3> &max_prod,
+	xt::xtensor<SCIP_Real, 2> &month_constr,
+	xt::xtensor<SCIP_Real, 1> &annual_constr,
+	xt::xtensor<SCIP_Bool, 2> &schedule) {
 
+	auto const pos_inf =  SCIPinfinity(scip);
 	auto const neg_inf = -SCIPinfinity(scip);
 
-	for (size_t j = 0; j < vars.shape(1); ++j) {
-		for (size_t i = 0; i < vars.shape(0); ++i) {
-			for (size_t k = 0; k < vars.shape(2); ++k) {
-				auto name = fmt::format("max_prod_{}_{}_{}", i, j, k);
-				auto coefs = xt::xtensor<SCIP_Real, 1>({1}, 1.);
-				auto cons = scip::create_cons_basic_linear(
-					scip, name.c_str(), 1, &vars(i, j, k), coefs.data(), neg_inf, 1);
+	std::string name;
+
+	xt::xtensor<SCIP_Real, 1> coefs;
+	auto quadcoefs = xt::xtensor<SCIP_Real, 1>({1}, 1.);
+	auto lincoefs = xt::xtensor<SCIP_Real, 1>({1}, -1.);
+
+	for (size_t j = 0; j < vars.shape(2); ++j) {
+		for (size_t i = 0; i < vars.shape(1); ++i) {
+			for (size_t k = 0; k < vars.shape(3); ++k) {
+				name = fmt::format("max_prod_{}_{}_{}", i, j, k);
+				coefs = xt::xtensor<SCIP_Real, 1>({1}, 1.);
+				auto cons = scip::create_cons_basic_linear(scip, name.c_str(),
+													  1, &vars(0, i, j, k), coefs.data(), neg_inf, 1);
+				scip::call(SCIPaddCons, scip, cons.get());
+
+				// ======================================================================
+
+				// quadvars1 = {vars(0, i, j, k)};
+				// quadvars2 = {vars(1, i, j, k)};
+				// linvars   = {vars(2, i, j, k)};
+				// size_t n_nonlinvars = 1;
+				// size_t n_linvars    = 1;
+
+				name = fmt::format("obj_to_cons_pos_{}_{}_{}_term", i, j, k);
+				cons = scip::create_cons_non_linear(scip, name.c_str(),
+													1, &vars(2, i, j, k), lincoefs.data(),
+													1, &vars(0, i, j, k), &vars(1, i, j, k), quadcoefs.data(), -0.00001, 0.00001);
+				scip::call(SCIPaddCons, scip, cons.get());
+
+				// =======================================================================
+
+				xt::xtensor<SCIP_VAR*, 1> x_ik = xt::view(vars, 0, i, xt::all(), k);
+				name = fmt::format("S_{}_{}", i, k);
+				coefs = xt::xtensor<SCIP_Real, 1>({vars.shape(2)}, 1.);;
+				cons = scip::create_cons_basic_linear(scip, name.c_str(),
+													  x_ik.size(), &x_ik(0), coefs.data(), neg_inf, static_cast<SCIP_Real>(schedule(i, k)));
 				scip::call(SCIPaddCons, scip, cons.get());
 			}
 
-			xt::xtensor<SCIP_VAR*, 1> x_ij = xt::view(vars, i, j, xt::all());
-			auto name = fmt::format("E_{}_{}", i, j);
+			xt::xtensor<SCIP_VAR*, 1> x_ij = xt::view(vars, 0, i, j, xt::all());
+			name = fmt::format("E_{}_{}", i, j);
 			auto coefs = xt::view(max_prod, i, j, xt::all());
 			auto cons = scip::create_cons_basic_linear(
 				scip, name.c_str(), x_ij.size(), &x_ij(0), coefs.data(), neg_inf, month_constr(i, j));
 			scip::call(SCIPaddCons, scip, cons.get());
 		}
 
-		xt::xtensor<SCIP_VAR*, 1> x_j = xt::flatten(xt::view(vars, xt::all(), j, xt::all()));
-		auto name = fmt::format("Z_{}", j);
+		xt::xtensor<SCIP_VAR*, 1> x_j = xt::flatten(xt::view(vars, 0, xt::all(), j, xt::all()));
+		name = fmt::format("Z_{}", j);
 		xt::xtensor<SCIP_Real, 1> coefs = xt::flatten(xt::view(max_prod, xt::all(), j, xt::all()));
 		auto cons = scip::create_cons_basic_linear(
 			scip, name.c_str(), x_j.size(), &x_j(0), coefs.data(), neg_inf, annual_constr(j));
@@ -141,6 +177,8 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	double beta = unif(re);
 	xt::xtensor<SCIP_Real, 1> annual_constr = beta * xt::sum(month_constr, {0});
 
+	xt::xtensor<SCIP_Bool, 2> schedule = xt::random::binomial<size_t>({n_months, n_ships}, 1, 0.9, rng) + 0;
+
 	// create scip model
 	auto model = scip::Model::prob_basic();
 	model.set_name(fmt::format("SAP-{}-{}-{}", parameters.n_months, parameters.n_places, parameters.n_ships));
@@ -148,15 +186,15 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	scip::call(SCIPsetObjsense, scip, SCIP_OBJSENSE_MAXIMIZE);
 
 	// add variables and constraints
-	xt::xtensor<SCIP_VAR*, 3> const vars = add_vars(scip, returns);
+	xt::xtensor<SCIP_VAR*, 4> vars = add_vars(scip, returns);
 
-	std::ofstream myfile;
-	myfile.open("test.txt");
-	auto shape_kek = vars.shape();
-	for (auto& el : shape_kek) {myfile << el << ", "; }
-	myfile.close();
+	// std::ofstream myfile;
+	// myfile.open("test.txt");
+	// auto shape_kek = vars.shape();
+	// for (auto& el : shape_kek) {myfile << el << ", "; }
+	// myfile.close();
 
-	add_constaints(scip, vars, max_prod, month_constr, annual_constr);
+	add_constaints(scip, vars, max_prod, month_constr, annual_constr, schedule);
 
 	return model;
 

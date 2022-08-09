@@ -15,6 +15,44 @@ void ConsReleaser::operator()(SCIP_CONS* ptr) {
 	scip::call(SCIPreleaseCons, scip, &ptr);
 }
 
+auto create_cons_non_linear(
+	SCIP* scip,
+	char const* name,
+	std::size_t n_linvars,
+	SCIP_VAR const* const* linvars,
+	SCIP_Real const* lincoefs,
+	std::size_t n_nonlinvars,
+	SCIP_VAR const* const* quadvars1,
+	SCIP_VAR const* const* quadvars2,
+	SCIP_Real const* quadcoefs,
+	SCIP_Real lhs,
+	SCIP_Real rhs) -> std::unique_ptr<SCIP_CONS, ConsReleaser>{
+
+	SCIP_CONS * cons = nullptr;
+	scip::call(
+		SCIPcreateConsQuadraticNonlinear,
+		scip, &cons, name,
+		static_cast<int>(n_linvars),
+		const_cast<SCIP_VAR**>(linvars),
+		const_cast<SCIP_Real*>(lincoefs),
+		static_cast<int>(n_nonlinvars),
+		const_cast<SCIP_VAR**>(quadvars1),
+		const_cast<SCIP_VAR**>(quadvars2),
+		const_cast<SCIP_Real*>(quadcoefs),
+		lhs, rhs,
+		TRUE,
+		TRUE,
+		TRUE,
+		TRUE,
+		TRUE,
+		FALSE,
+		FALSE,
+		FALSE,
+		FALSE);
+				
+	return {cons, ConsReleaser{scip}};
+}
+
 auto create_cons_basic_linear(
 	SCIP* scip,
 	char const* name,

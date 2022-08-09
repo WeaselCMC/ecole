@@ -1,5 +1,3 @@
-#pragma once
-
 #include <memory>
 #include <optional>
 #include <vector>
@@ -9,6 +7,7 @@
 #include <scip/cons_linear.h>
 #include <scip/scip.h>
 #include <scip/scip_cons.h>
+#include <scip/cons_nonlinear.h>
 
 #include "ecole/export.hpp"
 #include "ecole/scip/utils.hpp"
@@ -38,6 +37,20 @@ private:
  *
  * The arguments are forwarded to SCIPcreateConsBasicLinear.
  */
+
+ECOLE_EXPORT auto create_cons_non_linear(
+	SCIP* scip,
+	char const* name,
+	std::size_t n_linvars,
+	SCIP_VAR const* const* linvars,
+	SCIP_Real const* lincoefs,
+	std::size_t n_nonlinvars,
+	SCIP_VAR const* const* quadvars1,
+	SCIP_VAR const* const* quadvars2,
+	SCIP_Real const* quadcoefs,
+	SCIP_Real lhs,
+	SCIP_Real rhs) -> std::unique_ptr<SCIP_CONS, ConsReleaser>;
+
 ECOLE_EXPORT auto create_cons_basic_linear(
 	SCIP* scip,
 	char const* name,
