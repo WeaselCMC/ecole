@@ -85,7 +85,6 @@ auto add_constaints(
 
 	std::string name;
 
-	xt::xtensor<SCIP_Real, 1> coefs;
 	auto quadcoefs = xt::xtensor<SCIP_Real, 1>({1}, 1.);
 	auto lincoefs = xt::xtensor<SCIP_Real, 1>({1}, -1.);
 
@@ -93,7 +92,7 @@ auto add_constaints(
 		for (size_t i = 0; i < vars.shape(1); ++i) {
 			for (size_t k = 0; k < vars.shape(3); ++k) {
 				name = fmt::format("max_prod_{}_{}_{}", i, j, k);
-				coefs = xt::xtensor<SCIP_Real, 1>({1}, 1.);
+				auto coefs = xt::xtensor<SCIP_Real, 1>({1}, 1.);
 				auto cons = scip::create_cons_basic_linear(scip, name.c_str(),
 													  1, &vars(0, i, j, k), coefs.data(), neg_inf, 1);
 				scip::call(SCIPaddCons, scip, cons.get());
