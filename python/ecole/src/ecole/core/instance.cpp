@@ -99,6 +99,11 @@ void bind_submodule(py::module const& m) {
 
 	// The SAP parameters used in constructor, generate_instance, and attributes
 	auto constexpr ship_allocation_params = std::tuple{
+		Member{"r_path", &SAPGenerator::Parameters::r_path},
+		Member{"c_path", &SAPGenerator::Parameters::c_path},
+		Member{"m_path", &SAPGenerator::Parameters::m_path},
+		Member{"a_path", &SAPGenerator::Parameters::a_path},
+		Member{"s_path", &SAPGenerator::Parameters::s_path},
 		Member{"n_months", &SAPGenerator::Parameters::n_months},
 		Member{"n_places", &SAPGenerator::Parameters::n_places},
 		Member{"n_ships", &SAPGenerator::Parameters::n_ships},

@@ -11,6 +11,11 @@ namespace ecole::instance {
 class ECOLE_EXPORT SAPGenerator : public InstanceGenerator {
 public:
     struct ECOLE_EXPORT Parameters {
+        std::string r_path = "";
+        std::string c_path = "";
+        std::string m_path = "";
+        std::string a_path = "";
+        std::string s_path = "";
         std::size_t n_months = 12;  // NOLINT(readability-magic-numbers)
         std::size_t n_places = 20;  // NOLINT(readability-magic-numbers)
         std::size_t n_ships = 35;   // NOLINT(readability-magic-numbers)
