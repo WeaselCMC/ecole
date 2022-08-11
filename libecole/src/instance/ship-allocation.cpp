@@ -12,6 +12,7 @@
 #include <xtensor/xsort.hpp>
 #include <xtensor/xtensor.hpp>
 #include <xtensor/xview.hpp>
+
 #include <xtensor/xcsv.hpp>
 #include <xtensor/xnpy.hpp>
 
@@ -105,7 +106,7 @@ auto add_constaints(
 
 				// =======================================================================
 
-				xt::xtensor<SCIP_VAR*, 1> x_ik = xt::view(vars, 0, i, xt::all(), k);
+				xt::xtensor<SCIP_VAR*, 1> x_ik = xt::view(vars, 1, i, xt::all(), k);
 				name = fmt::format("S_{}_{}", i, k);
 				auto coefs = xt::xtensor<SCIP_Real, 1>({vars.shape(2)}, 1.);;
 				cons = scip::create_cons_basic_linear(scip, name.c_str(),
@@ -113,16 +114,16 @@ auto add_constaints(
 				scip::call(SCIPaddCons, scip, cons.get());
 			}
 
-			xt::xtensor<SCIP_VAR*, 1> x_ij = xt::view(vars, 0, i, j, xt::all());
-			name = fmt::format("E_{}_{}", i, j);
+			xt::xtensor<SCIP_VAR*, 1> x_ij = xt::view(vars, 1, i, j, xt::all());
+			name = fmt::format("M_{}_{}", i, j);
 			auto coefs = xt::view(max_prod, i, j, xt::all());
 			auto cons = scip::create_cons_basic_linear(
 				scip, name.c_str(), x_ij.size(), &x_ij(0), coefs.data(), neg_inf, month_constr(i, j));
 			scip::call(SCIPaddCons, scip, cons.get());
 		}
 
-		xt::xtensor<SCIP_VAR*, 1> x_j = xt::flatten(xt::view(vars, 0, xt::all(), j, xt::all()));
-		name = fmt::format("Z_{}", j);
+		xt::xtensor<SCIP_VAR*, 1> x_j = xt::flatten(xt::view(vars, 1, xt::all(), j, xt::all()));
+		name = fmt::format("A_{}", j);
 		xt::xtensor<SCIP_Real, 1> coefs = xt::flatten(xt::view(max_prod, xt::all(), j, xt::all()));
 		auto cons = scip::create_cons_basic_linear(
 			scip, name.c_str(), x_j.size(), &x_j(0), coefs.data(), neg_inf, annual_constr(j));
@@ -150,13 +151,13 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	// sample coefficients
 	xt::xarray<size_t>::shape_type shape = {n_months, n_places, n_ships};
 
-	xt::xtensor<SCIP_Real, 3> returns = xt::load_npy<SCIP_Real>(r_path);
-	xt::xtensor<SCIP_Real, 3> max_prod = xt::load_npy<SCIP_Real>(c_path);
-	xt::xtensor<SCIP_Real, 2> month_constr = xt::load_npy<SCIP_Real>(m_path);
-	xt::xtensor<SCIP_Real, 1> annual_constr = xt::load_npy<SCIP_Real>(a_path);
-	xt::xtensor<SCIP_Real, 2> schedule = xt::load_npy<SCIP_Real>(s_path);
+	// xt::xtensor<SCIP_Real, 3> returns = xt::load_npy<SCIP_Real>(r_path);
+	// xt::xtensor<SCIP_Real, 3> max_prod = xt::load_npy<SCIP_Real>(c_path);
+	// xt::xtensor<SCIP_Real, 2> month_constr = xt::load_npy<SCIP_Real>(m_path);
+	// xt::xtensor<SCIP_Real, 1> annual_constr = xt::load_npy<SCIP_Real>(a_path);
+	// xt::xtensor<SCIP_Real, 2> schedule = xt::load_npy<SCIP_Real>(s_path);
 
-	/*
+	
 	// sample returns
 	xt::xtensor<SCIP_Real, 3> availability = xt::random::binomial<size_t>(shape, 1, 0.8, rng) + 0;
 	xt::xtensor<SCIP_Real, 3> returns = xt::random::rand<SCIP_Real>(shape, 3, 9, rng) + 0;
@@ -169,8 +170,6 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	auto m_c = xt::expand_dims(month_constr, 2);
 	max_prod = xt::clip(max_prod, 0, m_c);
 
-	returns *= max_prod;
-
 	// sample E_ij month constaints
 	xt::xtensor<SCIP_Real, 2> place_avail = xt::random::binomial<size_t>({n_months, n_places}, 1, 0.75, rng) + 0;
 	month_constr *= place_avail;
@@ -182,7 +181,14 @@ scip::Model SAPGenerator::generate_instance(Parameters parameters, RandomGenerat
 	xt::xtensor<SCIP_Real, 1> annual_constr = beta * xt::sum(month_constr, {0});
 
 	xt::xtensor<SCIP_Real, 2> schedule = xt::random::binomial<size_t>({n_months, n_ships}, 1, 0.9, rng) + 0;
-	*/
+
+    xt::dump_npy("R.npy", returns);
+    xt::dump_npy("C.npy", max_prod);
+    xt::dump_npy("M.npy", month_constr);
+    xt::dump_npy("A.npy", annual_constr);
+    xt::dump_npy("S.npy", schedule);
+
+    returns *= max_prod;
 
 	// create scip model
 	auto model = scip::Model::prob_basic();
